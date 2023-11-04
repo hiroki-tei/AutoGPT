@@ -11,6 +11,9 @@ from forge.sdk import (
     chat_completion_request,
     ChromaMemStore
 )
+from forge.sdk.abilities.registry import (
+    ability
+)
 import json
 import pprint
 
@@ -171,6 +174,7 @@ class ForgeAgent(Agent):
             LOG.error(f"Unable to generate chat response: {e}")
 
         # Extract the ability from the answer
+        pprint.pprint(answer)
         ability = answer["ability"]
 
         # Run the ability and get the output
@@ -196,3 +200,27 @@ class ForgeAgent(Agent):
 
 
         return step
+
+
+@ability(
+    name="write_file",
+    description="Write data to a file",
+    parameters=[
+        {
+            "name": "file_path",
+            "description": "Path to the file",
+            "type": "string",
+            "required": True,
+        },
+        {
+            "name": "data",
+            "description": "Data to write to the file",
+            "type": "bytes",
+            "required": True,
+        },
+    ],
+    output_type="None",
+)
+async def write_file(agent, task_id: str, file_path: str, data: bytes) -> None:
+    print("ALLLLLLLLLLLLLLLLLLLLRIGHT!!!!!!!!!, Written done.")
+    pass
