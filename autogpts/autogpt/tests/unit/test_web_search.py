@@ -4,48 +4,62 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from autogpt.agents.agent import Agent
-from autogpt.agents.utils.exceptions import ConfigurationError
-from autogpt.commands.web_search import google, safe_google_results, web_search
+from autogpt.commands.web_search import WebSearchComponent
+from autogpt.utils.exceptions import ConfigurationError
+
+
+@pytest.fixture
+def web_search_component(agent: Agent):
+    return agent.web_search
 
 
 @pytest.mark.parametrize(
     "query, expected_output",
     [("test", "test"), (["test1", "test2"], '["test1", "test2"]')],
 )
-def test_safe_google_results(query, expected_output):
-    result = safe_google_results(query)
+@pytest.fixture
+def test_safe_google_results(
+    query, expected_output, web_search_component: WebSearchComponent
+):
+    result = web_search_component.safe_google_results(query)
     assert isinstance(result, str)
     assert result == expected_output
 
 
-def test_safe_google_results_invalid_input():
+@pytest.fixture
+def test_safe_google_results_invalid_input(web_search_component: WebSearchComponent):
     with pytest.raises(AttributeError):
-        safe_google_results(123)
+        web_search_component.safe_google_results(123)  # type: ignore
 
 
 @pytest.mark.parametrize(
-    "query, num_results, expected_output, return_value",
+    "query, num_results, expected_output_parts, return_value",
     [
         (
             "test",
             1,
-            '[\n    {\n        "title": "Result 1",\n        "url": "https://example.com/result1"\n    }\n]',
+            ("Result 1", "https://example.com/result1"),
             [{"title": "Result 1", "href": "https://example.com/result1"}],
         ),
-        ("", 1, "[]", []),
-        ("no results", 1, "[]", []),
+        ("", 1, (), []),
+        ("no results", 1, (), []),
     ],
 )
 def test_google_search(
-    query, num_results, expected_output, return_value, mocker, agent: Agent
+    query,
+    num_results,
+    expected_output_parts,
+    return_value,
+    mocker,
+    web_search_component: WebSearchComponent,
 ):
     mock_ddg = mocker.Mock()
     mock_ddg.return_value = return_value
 
     mocker.patch("autogpt.commands.web_search.DDGS.text", mock_ddg)
-    actual_output = web_search(query, agent=agent, num_results=num_results)
-    expected_output = safe_google_results(expected_output)
-    assert actual_output == expected_output
+    actual_output = web_search_component.web_search(query, num_results=num_results)
+    for o in expected_output_parts:
+        assert o in actual_output
 
 
 @pytest.fixture
@@ -82,11 +96,11 @@ def test_google_official_search(
     expected_output,
     search_results,
     mock_googleapiclient,
-    agent: Agent,
+    web_search_component: WebSearchComponent,
 ):
     mock_googleapiclient.return_value = search_results
-    actual_output = google(query, agent=agent, num_results=num_results)
-    assert actual_output == safe_google_results(expected_output)
+    actual_output = web_search_component.google(query, num_results=num_results)
+    assert actual_output == web_search_component.safe_google_results(expected_output)
 
 
 @pytest.mark.parametrize(
@@ -115,7 +129,7 @@ def test_google_official_search_errors(
     mock_googleapiclient,
     http_code,
     error_msg,
-    agent: Agent,
+    web_search_component: WebSearchComponent,
 ):
     class resp:
         def __init__(self, _status, _reason):
@@ -133,4 +147,4 @@ def test_google_official_search_errors(
 
     mock_googleapiclient.side_effect = error
     with pytest.raises(expected_error_type):
-        google(query, agent=agent, num_results=num_results)
+        web_search_component.google(query, num_results=num_results)

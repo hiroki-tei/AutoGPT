@@ -64,7 +64,7 @@ d88P     888  "Y88888  "Y888 "Y88P"   "Y8888P88 888           888
         install_error = True
 
     try:
-        # Check if GitHub user name is configured
+        # Check if git user is configured
         user_name = (
             subprocess.check_output(["git", "config", "user.name"])
             .decode("utf-8")
@@ -79,7 +79,7 @@ d88P     888  "Y88888  "Y888 "Y88P"   "Y8888P88 888           888
         if user_name and user_email:
             click.echo(
                 click.style(
-                    f"✅ GitHub account is configured with username: {user_name} and email: {user_email}",
+                    f"✅ Git is configured with name '{user_name}' and email '{user_email}'",
                     fg="green",
                 )
             )
@@ -90,25 +90,23 @@ d88P     888  "Y88888  "Y888 "Y88P"   "Y8888P88 888           888
 
     except subprocess.CalledProcessError:
         # If the GitHub account is not configured, print instructions on how to set it up
-        click.echo(click.style("❌ GitHub account is not configured.", fg="red"))
+        click.echo(click.style("⚠️ Git user is not configured.", fg="red"))
         click.echo(
             click.style(
-                "To configure your GitHub account, use the following commands:",
+                "To configure Git with your user info, use the following commands:",
                 fg="red",
             )
         )
         click.echo(
-            click.style(
-                '  git config --global user.name "Your GitHub Username"', fg="red"
-            )
+            click.style('  git config --global user.name "Your (user)name"', fg="red")
         )
         click.echo(
-            click.style(
-                '  git config --global user.email "Your GitHub Email"', fg="red"
-            )
+            click.style('  git config --global user.email "Your email"', fg="red")
         )
         install_error = True
+
     print_access_token_instructions = False
+
     # Check for the existence of the .github_access_token file
     if os.path.exists(".github_access_token"):
         with open(".github_access_token", "r") as file:
@@ -169,7 +167,7 @@ d88P     888  "Y88888  "Y888 "Y88P"   "Y8888P88 888           888
         # Instructions to set up GitHub access token
         click.echo(
             click.style(
-                "❌ To configure your GitHub access token, follow these steps:", fg="red"
+                "💡 To configure your GitHub access token, follow these steps:", fg="red"
             )
         )
         click.echo(
@@ -179,7 +177,9 @@ d88P     888  "Y88888  "Y888 "Y88P"   "Y8888P88 888           888
             click.style("\t2. Navigate to https://github.com/settings/tokens", fg="red")
         )
         click.echo(click.style("\t3. Click on 'Generate new token'.", fg="red"))
-        click.echo(click.style("\t4. Click on 'Generate new token (classic)'.", fg="red"))
+        click.echo(
+            click.style("\t4. Click on 'Generate new token (classic)'.", fg="red")
+        )
         click.echo(
             click.style(
                 "\t5. Fill out the form to generate a new token. Ensure you select the 'repo' scope.",
@@ -195,6 +195,7 @@ d88P     888  "Y88888  "Y888 "Y88P"   "Y8888P88 888           888
         click.echo(
             click.style("\t7. Save the file and run the setup command again.", fg="red")
         )
+
     if install_error:
         click.echo(
             click.style(
@@ -233,18 +234,15 @@ def create(agent_name):
 
         existing_arena_files = [name.lower() for name in os.listdir("./arena/")]
 
-        if not os.path.exists(new_agent_dir) and not new_agent_name in existing_arena_files:
+        if (
+            not os.path.exists(new_agent_dir)
+            and not new_agent_name in existing_arena_files
+        ):
             shutil.copytree("./autogpts/forge", new_agent_dir)
             click.echo(
                 click.style(
                     f"🎉 New agent '{agent_name}' created. The code for your new agent is in: autogpts/{agent_name}",
                     fg="green",
-                )
-            )
-            click.echo(
-                click.style(
-                    f"🚀 If you would like to enter the arena, run './run arena enter {agent_name}'",
-                    fg="yellow",
                 )
             )
         else:
@@ -260,7 +258,11 @@ def create(agent_name):
 
 @agent.command()
 @click.argument("agent_name")
-@click.option("--no-setup", is_flag=True, help="Rebuilds your poetry env")
+@click.option(
+    "--no-setup",
+    is_flag=True,
+    help="Disables running the setup script before starting the agent",
+)
 def start(agent_name, no_setup):
     """Start agent command"""
     import os
@@ -270,15 +272,27 @@ def start(agent_name, no_setup):
     agent_dir = os.path.join(script_dir, f"autogpts/{agent_name}")
     run_command = os.path.join(agent_dir, "run")
     run_bench_command = os.path.join(agent_dir, "run_benchmark")
-    if os.path.exists(agent_dir) and os.path.isfile(run_command) and os.path.isfile(run_bench_command):
+    if (
+        os.path.exists(agent_dir)
+        and os.path.isfile(run_command)
+        and os.path.isfile(run_bench_command)
+    ):
         os.chdir(agent_dir)
         if not no_setup:
+            click.echo(f"⌛ Running setup for agent '{agent_name}'...")
             setup_process = subprocess.Popen(["./setup"], cwd=agent_dir)
             setup_process.wait()
+            click.echo()
+
         subprocess.Popen(["./run_benchmark", "serve"], cwd=agent_dir)
-        click.echo(f"Benchmark Server starting please wait...")
+        click.echo("⌛ (Re)starting benchmark server...")
+        wait_until_conn_ready(8080)
+        click.echo()
+
         subprocess.Popen(["./run"], cwd=agent_dir)
-        click.echo(f"Agent '{agent_name}' starting please wait...")
+        click.echo(f"⌛ (Re)starting agent '{agent_name}'...")
+        wait_until_conn_ready(8000)
+        click.echo("✅ Agent application started and available on port 8000")
     elif not os.path.exists(agent_dir):
         click.echo(
             click.style(
@@ -321,6 +335,7 @@ def stop():
                 os.kill(int(pid), signal.SIGTERM)
     except subprocess.CalledProcessError:
         click.echo("No process is running on port 8080")
+
 
 @agent.command()
 def list():
@@ -408,7 +423,7 @@ def benchmark_categories_list():
     )
     # Use it as the base for the glob pattern, excluding 'deprecated' directory
     for data_file in glob.glob(glob_path, recursive=True):
-        if 'deprecated' not in data_file:
+        if "deprecated" not in data_file:
             with open(data_file, "r") as f:
                 try:
                     data = json.load(f)
@@ -452,7 +467,7 @@ def benchmark_tests_list():
     )
     # Use it as the base for the glob pattern, excluding 'deprecated' directory
     for data_file in glob.glob(glob_path, recursive=True):
-        if 'deprecated' not in data_file:
+        if "deprecated" not in data_file:
             with open(data_file, "r") as f:
                 try:
                     data = json.load(f)
@@ -588,6 +603,7 @@ def benchmark_tests_details(test_name):
             except IOError:
                 print(f"IOError: file could not be read: {data_file}")
                 continue
+
 
 @cli.group()
 def arena():
@@ -751,7 +767,7 @@ def enter(agent_name, branch):
 
         # Create a PR into the parent repository
         g = Github(github_access_token)
-        repo_name = github_repo_url.replace("https://github.com/", '')
+        repo_name = github_repo_url.replace("https://github.com/", "")
         repo = g.get_repo(repo_name)
         parent_repo = repo.parent
         if parent_repo:
@@ -829,8 +845,8 @@ Hey there amazing builders! We're thrilled to have you join this exciting journe
 def update(agent_name, hash, branch):
     import json
     import os
-    from datetime import datetime
     import subprocess
+    from datetime import datetime
 
     # Check if the agent_name.json file exists in the arena directory
     agent_json_file = f"./arena/{agent_name}.json"
@@ -887,6 +903,31 @@ def update(agent_name, hash, branch):
                 fg="green",
             )
         )
+
+
+def wait_until_conn_ready(port: int = 8000, timeout: int = 30):
+    """
+    Polls localhost:{port} until it is available for connections
+
+    Params:
+        port: The port for which to wait until it opens
+        timeout: Timeout in seconds; maximum amount of time to wait
+
+    Raises:
+        TimeoutError: If the timeout (seconds) expires before the port opens
+    """
+    import socket
+    import time
+
+    start = time.time()
+    while True:
+        time.sleep(0.5)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("localhost", port)) == 0:
+                break
+        if time.time() > start + timeout:
+            raise TimeoutError(f"Port {port} did not open within {timeout} seconds")
+
 
 if __name__ == "__main__":
     cli()

@@ -24,7 +24,7 @@ class AIProfile(BaseModel):
     def load(ai_settings_file: str | Path) -> "AIProfile":
         """
         Returns class object with parameters (ai_name, ai_role, ai_goals, api_budget)
-        loaded from yaml file if yaml file exists, else returns class with no parameters.
+        loaded from yaml file if it exists, else returns class with no parameters.
 
         Parameters:
             ai_settings_file (Path): The path to the config yaml file.
@@ -35,7 +35,7 @@ class AIProfile(BaseModel):
 
         try:
             with open(ai_settings_file, encoding="utf-8") as file:
-                config_params = yaml.load(file, Loader=yaml.FullLoader) or {}
+                config_params = yaml.load(file, Loader=yaml.SafeLoader) or {}
         except FileNotFoundError:
             config_params = {}
 
